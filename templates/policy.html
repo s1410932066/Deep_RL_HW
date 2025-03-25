@@ -1,0 +1,62 @@
+<!-- templates/policy.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Policy & Value</title>
+    <style>
+        .matrix-container {
+            display: flex;
+            gap: 50px; /* 兩個矩陣間的間距 */
+        }
+        .matrix {
+            display: grid;
+            grid-template-columns: repeat({{n}}, 60px);
+            grid-gap: 5px;
+            margin-top: 20px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            text-align: center;
+            line-height: 60px;
+            border: 1px solid #ccc;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Policy & Value</h1>
+    <div class="matrix-container">
+        <!-- 策略矩陣 -->
+        <div>
+            <h2>Policy Matrix</h2>
+            <div class="matrix">
+            {% for i in range(n) %}
+                {% for j in range(n) %}
+                    <div class="cell">
+                        {{ policy_matrix[i][j] }}
+                    </div>
+                {% endfor %}
+            {% endfor %}
+            </div>
+        </div>
+
+        <!-- 價值矩陣 -->
+        <div>
+            <h2>Value Matrix</h2>
+            <div class="matrix">
+            {% for i in range(n) %}
+                {% for j in range(n) %}
+                    <div class="cell">
+                        {{ value_matrix[i][j] }}
+                    </div>
+                {% endfor %}
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <p><a href="{{ url_for('grid') }}">返回網格</a></p>
+</body>
+</html>
