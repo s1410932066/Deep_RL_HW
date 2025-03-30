@@ -7,7 +7,7 @@
     <style>
         .matrix-container {
             display: flex;
-            gap: 50px; /* 兩個矩陣間的間距 */
+            gap: 50px;
         }
         .matrix {
             display: grid;
@@ -23,6 +23,10 @@
             border: 1px solid #ccc;
             font-weight: bold;
         }
+        /* 顯示最佳路徑的顏色 */
+        .best-path {
+            background-color: #6AC259; /* 你想要的綠色 */
+        }
     </style>
 </head>
 <body>
@@ -34,7 +38,8 @@
             <div class="matrix">
             {% for i in range(n) %}
                 {% for j in range(n) %}
-                    <div class="cell">
+                    {% set in_best_path = (i, j) in best_path %}
+                    <div class="cell {% if in_best_path %}best-path{% endif %}">
                         {{ policy_matrix[i][j] }}
                     </div>
                 {% endfor %}
@@ -48,7 +53,8 @@
             <div class="matrix">
             {% for i in range(n) %}
                 {% for j in range(n) %}
-                    <div class="cell">
+                    {% set in_best_path = (i, j) in best_path %}
+                    <div class="cell {% if in_best_path %}best-path{% endif %}">
                         {{ value_matrix[i][j] }}
                     </div>
                 {% endfor %}

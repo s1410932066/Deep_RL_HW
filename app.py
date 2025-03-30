@@ -49,13 +49,6 @@ def index():
 
 @app.route('/grid', methods=['GET', 'POST'])
 def grid():
-    """
-    顯示 n x n 網格，可點擊改變顏色：
-    1. 第一次點擊某個白色格子 -> 綠色(起點)
-    2. 第二次點擊某個白色格子 -> 紅色(終點)
-    3. 之後點擊白色格子 -> 灰色(障礙)
-    已經被指定顏色的格子再次點擊，不做任何變更。
-    """
     if 'grid' not in session:
         return redirect(url_for('index'))
 
@@ -68,7 +61,7 @@ def grid():
         i = int(request.form.get('i'))
         j = int(request.form.get('j'))
 
-        # 只有「白色」格子才需要處理
+        # 只有「白色」格子才處理
         if grid[i][j]['color'] == 'white':
             if not start_set:
                 grid[i][j]['color'] = 'green'  # 起點
@@ -77,7 +70,13 @@ def grid():
                 grid[i][j]['color'] = 'red'  # 終點
                 end_set = True
             else:
-                grid[i][j]['color'] = 'gray'  # 障礙
+                # 計算目前已有多少個障礙
+                obstacle_count = sum(cell['color'] == 'gray' for row in grid for cell in row)
+                if obstacle_count < (n - 2):
+                    grid[i][j]['color'] = 'gray'  # 障礙
+                else:
+                    # 障礙物數量已達上限，這裡可以選擇不做處理或回傳提示訊息
+                    pass
 
         # 更新 session
         session['grid'] = grid
@@ -87,49 +86,202 @@ def grid():
     return render_template('grid.html', grid=grid, n=n)
 
 
+
+def value_iteration(grid, gamma=0.9, theta=1e-4):
+    """
+    假設已實作好的「價值迭代」函式，返回:
+    V: dict, 例如 {(i, j): value, ...}
+    policy: dict, 例如 {(i, j): 'up'/'down'/'left'/'right', ...}
+    """
+    n = len(grid)
+    V = {}
+    # 初始化
+    for i in range(n):
+        for j in range(n):
+            if grid[i][j]['color'] != 'gray':
+                V[(i, j)] = 0.0
+
+    # 找目標(終點)
+    goal = None
+    for i in range(n):
+        for j in range(n):
+            if grid[i][j]['color'] == 'red':
+                goal = (i, j)
+                break
+        if goal:
+            break
+
+    # 若找不到紅色終點，可視情況自行定義(略)
+
+    actions = {
+        'up': (-1, 0),
+        'down': (1, 0),
+        'left': (0, -1),
+        'right': (0, 1)
+    }
+
+    while True:
+        delta = 0
+        for s in V.keys():
+            # 終點不更新
+            if s == goal:
+                continue
+
+            best_value = float('-inf')
+            best_action = None
+
+            for a, (di, dj) in actions.items():
+                i, j = s
+                ni, nj = i + di, j + dj
+                # 邊界或障礙就留在原地
+                if not (0 <= ni < n and 0 <= nj < n) or grid[ni][nj]['color'] == 'gray':
+                    next_s = s
+                else:
+                    next_s = (ni, nj)
+
+                # 假設走一步 -1，到達終點 0
+                r = 0 if next_s == goal else -1
+                q_value = r + gamma * V[next_s]
+                if q_value > best_value:
+                    best_value = q_value
+                    best_action = a
+
+            delta = max(delta, abs(best_value - V[s]))
+            V[s] = best_value
+            # 把最佳動作暫存在 V 以外的地方也行，這裡先一起存
+            # 你可以分開用 policy dict
+        if delta < theta:
+            break
+
+    # 單獨建立一個 policy dict
+    policy = {}
+    for s in V.keys():
+        if s == goal:
+            policy[s] = None
+            continue
+
+        best_value = float('-inf')
+        best_action = None
+        for a, (di, dj) in actions.items():
+            i, j = s
+            ni, nj = i + di, j + dj
+            if not (0 <= ni < n and 0 <= nj < n) or grid[ni][nj]['color'] == 'gray':
+                next_s = s
+            else:
+                next_s = (ni, nj)
+            r = 0 if next_s == goal else -1
+            q_value = r + gamma * V[next_s]
+            if q_value > best_value:
+                best_value = q_value
+                best_action = a
+        policy[s] = best_action
+
+    return V, policy
+
+
+def find_path(grid, policy):
+    """
+    根據 policy，從「綠色起點」一路走到「紅色終點」，
+    回傳經過的狀態清單 best_path。
+    """
+    n = len(grid)
+    # 找出起點
+    start = None
+    end = None
+    for i in range(n):
+        for j in range(n):
+            if grid[i][j]['color'] == 'green':
+                start = (i, j)
+            elif grid[i][j]['color'] == 'red':
+                end = (i, j)
+    if not start or not end:
+        return []
+
+    best_path = []
+    current = start
+    visited = set()
+    while True:
+        best_path.append(current)
+        visited.add(current)
+        if current == end:
+            # 到終點就結束
+            break
+        action = policy.get(current)
+        if not action:
+            # 該狀態沒有定義動作(可能是障礙或終點)
+            break
+        di, dj = {
+            'up': (-1, 0),
+            'down': (1, 0),
+            'left': (0, -1),
+            'right': (0, 1)
+        }[action]
+        next_i, next_j = current[0] + di, current[1] + dj
+        # 邊界檢查
+        if not (0 <= next_i < n and 0 <= next_j < n):
+            break
+        # 障礙檢查
+        if grid[next_i][next_j]['color'] == 'gray':
+            break
+        next_s = (next_i, next_j)
+        # 防止死循環
+        if next_s in visited:
+            break
+        current = next_s
+
+    return best_path
+
+
 @app.route('/policy')
 def policy():
-    """
-    顯示「策略矩陣」與「價值矩陣」。
-    - 策略矩陣：每個格子一個箭頭（上、下、左、右）或障礙(X)
-    - 價值矩陣：示範用隨機數代表 V(s)
-    """
     if 'grid' not in session:
         return redirect(url_for('index'))
 
-    n = session['n']
     grid = session['grid']
+    n = session['n']
 
-    # 隨機產生策略 (Policy)
-    # policy[i][j] = '^' / 'v' / '<' / '>' (上/下/左/右)
-    directions = ['↑', '↓', '←', '→']
+    # 1. 用價值迭代拿到 V, policy
+    V, optimal_policy = value_iteration(grid)
+
+    # 2. 找出「最佳路徑」(從起點到終點)
+    best_path = find_path(grid, optimal_policy)
+
+    # 3. 把 policy 轉成箭頭符號、把 V 四捨五入
+    arrow_map = {
+        'up': '↑',
+        'down': '↓',
+        'left': '←',
+        'right': '→',
+        None: ''  # 終點等可以不顯示
+    }
+
     policy_matrix = []
-    for i in range(n):
-        row = []
-        for j in range(n):
-            if grid[i][j]['color'] == 'gray':
-                row.append('X')  # 障礙
-            else:
-                row.append(random.choice(directions))
-        policy_matrix.append(row)
-
-    # 產生價值矩陣 (Value)，這裡用隨機數作示範
     value_matrix = []
     for i in range(n):
-        row = []
+        p_row = []
+        v_row = []
         for j in range(n):
             if grid[i][j]['color'] == 'gray':
-                row.append('障礙')
+                # 障礙
+                p_row.append('X')
+                v_row.append('障礙')
             else:
-                val = round(random.uniform(-5, 5), 2)
-                row.append(val)
-        value_matrix.append(row)
+                # 轉換箭頭
+                action = optimal_policy.get((i, j), None)
+                arrow = arrow_map.get(action, '')
+                p_row.append(arrow)
+                # 狀態價值
+                v_val = V.get((i, j), 0)
+                v_row.append(round(v_val, 2))
+        policy_matrix.append(p_row)
+        value_matrix.append(v_row)
 
+    # 4. 在 render_template 時，把 best_path 傳給前端
     return render_template('policy.html',
                            n=n,
                            policy_matrix=policy_matrix,
-                           value_matrix=value_matrix)
-
+                           value_matrix=value_matrix,
+                           best_path=best_path)
 
 if __name__ == '__main__':
     app.run(debug=True)
