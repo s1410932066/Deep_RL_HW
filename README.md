@@ -431,3 +431,5 @@ if __name__ == '__main__':
 
 ![original image](https://cdn.mathpix.com/snip/images/y6zs0b7r4bmj0Nu0j4ynvLTtihvYmiM-hmWTu5M8Za0.original.fullsize.png)
 
+## 六、實際操作影片
+[錄製_2025_03_30_15_16_56_241.mp4](%E9%8C%84%E8%A3%BD_2025_03_30_15_16_56_241.mp4)
